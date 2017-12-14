@@ -1,0 +1,174 @@
+---
+title: "R Notebook"
+output: pdf_document
+---
+
+\section{Simulated data}
+In the first part of this practical work we got familiar with $\texttt{bnlearn}$ library that contains some methods of receiving perfect maps from data.
+
+```{r}
+library("bnlearn")
+library("Rgraphviz")
+```
+We simulated a Gausiian model with a perfect map to compare received results by $\texttt{hc}$ and $\texttt{gs}$ procedures with real structure of the data.
+```{r}
+A <- matrix(data = c(1, 0, 0 ,0, 0, 0, 
+                     0, 1, 0, 0, 0, 0,
+                     -1, 0, 1, 0), nrow = 6, ncol = 6, byrow = TRUE)
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+library('Rgraphviz')
+library('bnlearn')
+
+data1 = data.frame()#colnames=c('x1','x2','x3','x4','x5','x6'))
+data2 = data.frame()#colnames=c('x1','x2','x3','x4','x5','x6'))
+#data1 = matrix(dimnames[1] = list(c('x1','x2','x3','x4','x5','x6')))
+#data2 = matrix(dimnames[1] = list(c('x1','x2','x3','x4','x5','x6')))
+generate_row <- function() {
+  eps = rnorm(6, mean = 0, sd = 1)
+  x1 = eps[1]
+  x2 = eps[2]
+  x3 = -x1+eps[3]
+  x4 = -2*x3+eps[4]
+  x5 = -x2+eps[5]
+  x6 = 2*x3+x1-x2+eps[6]
+  out = c(x1,x2,x3,x4,x5,x6)
+  return(out)
+}
+
+for(i in 1:40) {
+  data1 <- rbind(data1, generate_row())
+}
+for(i in 1:100) {
+  data2 <- rbind(data2, generate_row())
+}
+
+names(data1) <- c('x1','x2','x3','x4','x5','x6')
+names(data2) <- c('x1','x2','x3','x4','x5','x6')
+```
+
+```{r}
+
+
+bn.gs40 <- gs(data1)
+graphviz.plot(bn.gs40)
+
+bn.hc40 <- hc(data1)
+graphviz.plot(bn.hc40)
+
+bn.gs100 <- gs(data2)
+graphviz.plot(bn.gs100)
+
+bn.hc100 <- hc(data2)
+graphviz.plot(bn.hc100)
+```
+According to these results, we may conclude that the biggest amount of data gives better results. Also comparing $\texttt{hc}$ and $\texttt{gs}$ in such example $\texttt{gs}$ gives us undirected graph (and also not all the arcs) while $\texttt{hc}$ with 100 samples gave true answer.
+
+\section{Real data: asset returns}
+We created dataset from file "Returns250d.txt" and estimated directed graphs using the $\texttt{gs}$ and $\texttt{hc}$ procedures (omitting NA values).
+```{r}
+real_data <- read.table("Returns250d.txt")
+
+#real_data1 <- as.data.frame(real_data[,c("AIR.FRANCE.KLM","ALCATEL.LUCENT")])
+real_data1 <- as.data.frame(real_data[,c("AIR.FRANCE.KLM","ALCATEL.LUCENT","AXA", "FAURECIA", "GAUMONT", "GEODIS", "PPR", "UNION.FINC.FRANC.")])
+
+bn.hc_real <- hc(na.omit(real_data1))
+graphviz.plot(bn.hc_real, main = "hc")
+
+bn.gs_real <- gs(na.omit(real_data1))
+graphviz.plot(bn.gs_real, main = "gs")
+```
+Task 3. Found in gs, but not in hc.
+
+
+GEODIS is separated from others (marginally independent from all others except GAUMONT) according to $\texttt{gs}$ procedure. But $\texttt{ci.test}$  showed that there is no marginal independence between them. And use of $\texttt{ci.test}$ with condition on ALCATEL.LUCENT showed conditional independence as in $\texttt{hc}$ graph.
+
+```{r}
+ci.test(x = "FAURECIA", y = "GEODIS", data = na.omit(real_data1) )
+ci.test(x = "FAURECIA", y = "GEODIS", z = "ALCATEL.LUCENT", data = na.omit(real_data1) )
+```
+Task 4. Found by hc but not by gs
+
+According to $\texttt{hc}$ graph there should be conditional independence between "UNION.FINC.FRANC." and "AIR.FRANCE.KLM" knowing "AXA", "FAURECIA" - it is parents. But in $\texttt{gs}$ graph it is not enough for conditional independence (there are more parents).
+
+```{r}
+ci.test(x = "UNION.FINC.FRANC.", y = "AIR.FRANCE.KLM", data = na.omit(real_data1) )
+ci.test(x = "UNION.FINC.FRANC.", y = "AIR.FRANCE.KLM", z = c("AXA", "FAURECIA"), data = na.omit(real_data1) ) #only AXA?
+#ci.test(x = "GAUMONT", y = "GEODIS", z = c("ALCATEL.LUCENT","UNION.FINC.FRANC.") , data = na.omit(real_data1) )
+
+```
+Remark: we found that knowing only AXA is enough for conditional independence of "UNION.FINC.FRANC." and "AIR.FRANCE.KLM". So both graphs are not fully true.
+
+```{r}
+ci.test(x = "UNION.FINC.FRANC.", y = "AIR.FRANCE.KLM", z = c("AXA"), data = na.omit(real_data1) ) #only AXA?
+#Написать, что не совсем верно работает процедура (на графике нужны обе переменные, для теста - одна).
+```
+
+Task 5. Found by both hc and gs.
+Both graphs also have similarities in dependences, so we couldn't conclude that these procedures are fully incorrect. 
+```{r}
+#ci.test(x = "AIR.FRANCE.KLM", y = "UNION.FINC.FRANC.", z = c("ALCATEL.LUCENT", "AXA", "PPR", "FAURECIA"), data = na.omit(real_data1) )
+ci.test(x = "AXA", y = "GAUMONT", z = c("ALCATEL.LUCENT", "UNION.FINC.FRANC.", "PPR", "FAURECIA"), data = na.omit(real_data1) )
+```
+
+
+```{r, eval=FALSE, include=FALSE}
+ci.test(x = "GAUMONT", y = "GEODIS", data = na.omit(real_data1) )
+ci.test(x = "FAURECIA", y = "GAUMONT", data = na.omit(real_data1) )
+ci.test(x = "ALCATEL.LUCENT", y = "UNION.FINC.FRANC.", data = na.omit(real_data1) )
+```
+
+
+Founded in gs, but not in hc.
+```{r}
+ci.test(x = "ALCATEL.LUCENT", y = "GEODIS", z = c("AIR.FRANCE.KLM","AXA", "FAURECIA", "GAUMONT", "PPR", "UNION.FINC.FRANC."), data = na.omit(real_data1) )
+```
+
+Remaining relationships.
+```{r, eval=FALSE, include=FALSE}
+ci.test(x = "GAUMONT", y = "UNION.FINC.FRANC.", z = c("AIR.FRANCE.KLM","ALCATEL.LUCENT","AXA", "FAURECIA", "GEODIS", "PPR"), data = na.omit(real_data1) )
+ci.test(x = "GAUMONT", y = "ALCATEL.LUCENT", z = c("AIR.FRANCE.KLM","AXA", "FAURECIA", "GEODIS", "PPR", "UNION.FINC.FRANC."), data = na.omit(real_data1) )
+
+ci.test(x = "UNION.FINC.FRANC.", y = "FAURECIA", z = c("AIR.FRANCE.KLM","ALCATEL.LUCENT","AXA", "GAUMONT", "GEODIS", "PPR"), data = na.omit(real_data1) )
+ci.test(x = "UNION.FINC.FRANC.", y = "AXA", z = c("AIR.FRANCE.KLM","ALCATEL.LUCENT", "FAURECIA", "GAUMONT", "GEODIS", "PPR"), data = na.omit(real_data1) )
+
+ci.test(x = "FAURECIA", y = "AXA", z = c("AIR.FRANCE.KLM","ALCATEL.LUCENT", "GAUMONT", "GEODIS", "PPR", "UNION.FINC.FRANC."), data = na.omit(real_data1) )
+ci.test(x = "FAURECIA", y = "PPR", z = c("AIR.FRANCE.KLM","ALCATEL.LUCENT","AXA", "GAUMONT", "GEODIS",  "UNION.FINC.FRANC."), data = na.omit(real_data1) )
+ci.test(x = "FAURECIA", y = "ALCATEL.LUCENT", z = c("AIR.FRANCE.KLM","AXA",  "GAUMONT", "GEODIS", "PPR", "UNION.FINC.FRANC."), data = na.omit(real_data1) )
+ci.test(x = "FAURECIA", y = "AIR.FRANCE.KLM", z = c("ALCATEL.LUCENT","AXA",  "GAUMONT", "GEODIS", "PPR", "UNION.FINC.FRANC."), data = na.omit(real_data1) )
+
+
+ci.test(x = "AXA", y = "AIR.FRANCE.KLM", z = c("ALCATEL.LUCENT","FAURECIA", "GAUMONT", "GEODIS", "PPR", "UNION.FINC.FRANC."), data = na.omit(real_data1) )
+ci.test(x = "AXA", y = "ALCATEL.LUCENT", z = c("AIR.FRANCE.KLM", "FAURECIA", "GAUMONT", "GEODIS", "PPR", "UNION.FINC.FRANC."), data = na.omit(real_data1) )
+ci.test(x = "AXA", y = "PPR", z = c("AIR.FRANCE.KLM","ALCATEL.LUCENT", "FAURECIA", "GAUMONT", "GEODIS",  "UNION.FINC.FRANC."), data = na.omit(real_data1) )
+
+ci.test(x = "ALCATEL.LUCENT", y = "AIR.FRANCE.KLM", z = c("AXA", "FAURECIA", "GAUMONT", "GEODIS", "PPR", "UNION.FINC.FRANC."), data = na.omit(real_data1) )
+
+ci.test(x = "PPR", y = "ALCATEL.LUCENT", z = c("AIR.FRANCE.KLM","AXA", "FAURECIA", "GAUMONT", "GEODIS", "UNION.FINC.FRANC."), data = na.omit(real_data1) )
+ci.test(x = "PPR", y = "AIR.FRANCE.KLM", z = c("ALCATEL.LUCENT","AXA", "FAURECIA", "GAUMONT", "GEODIS", "UNION.FINC.FRANC."), data = na.omit(real_data1) )
+
+```
+
+\section{Mandatory additional question}
+
+\subsection{Task 1}
+
+\subsection{Task 2}
+We used GES (Greedy Equivalence Search) as algorithm for structure learning, it is proved to be consistent in fixed-dimensional networks (our case).
+```{r}
+library("pcalg")
+## Define the score (BIC)
+score <- new("GaussL0penObsScore", na.omit(real_data1))
+
+## Estimate the essential graph
+ges.fit <- ges(score)
+
+## Plot the estimated essential graph and the true DAG
+plot(ges.fit$essgraph, main = "Estimated GES CPDAG")
+```
+The graph we found by using GES has the same structure as the graph funded by \texttt{hs}. Nevertheless it has many bidirectional edges. It might be that the "true" directed PGM has many equivalent directed PGM in its equivalence class, and GES tries to find the equivalence PDAG or that the data set is not big enough to get a good directed PGM.
+
+
+
